@@ -23,6 +23,7 @@ Examples:
 | Date | Fix | File |
 |------|-----|------|
 | 2026-05-08 | Google Maps Loader class removed — migrated to new functional API | [2026-05-08-google-maps-loader-api.md](2026-05-08-google-maps-loader-api.md) |
+| 2026-05-08 | Replaced default Vite SVG favicon with full favicon_io icon set | [2026-05-08-favicon-update.md](2026-05-08-favicon-update.md) |
 
 ---
 
