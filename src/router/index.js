@@ -14,6 +14,7 @@ const routes = [
       { path: 'jeeps',     name: 'Jeeps',     component: () => import('@/views/JeepsView.vue') },
       { path: 'trips',     name: 'Trips',     component: () => import('@/views/TripsView.vue') },
       { path: 'history',   name: 'History',   component: () => import('@/views/HistoryView.vue') },
+      { path: 'drivers',   name: 'Drivers',   component: () => import('@/views/DriversView.vue') },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/' },

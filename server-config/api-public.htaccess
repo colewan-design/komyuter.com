@@ -1,0 +1,35 @@
+# Upload this file as: /home/u867165545/domains/komyuter.com/public_html/api/public/.htaccess
+
+<IfModule mod_headers.c>
+    Header always set Access-Control-Allow-Origin "https://komyuter.com"
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With"
+    Header always set Access-Control-Allow-Credentials "true"
+</IfModule>
+
+# Handle OPTIONS preflight — return 200 immediately before Laravel touches it
+RewriteEngine On
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^ - [R=200,L]
+
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    RewriteEngine On
+
+    # Preserve Authorization header (shared hosting strips it)
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Remove trailing slashes
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # Route everything to Laravel index.php
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>

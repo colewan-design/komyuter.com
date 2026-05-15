@@ -14,8 +14,10 @@ export const useTripsStore = defineStore('trips', () => {
     return data
   }
 
-  async function start(jeepId, origin, destination) {
-    const { data } = await api.post(`/jeeps/${jeepId}/trips`, { origin, destination })
+  async function start(jeepId, origin, destination, jeepneyRouteId = null) {
+    const payload = { origin, destination }
+    if (jeepneyRouteId) payload.jeepney_route_id = jeepneyRouteId
+    const { data } = await api.post(`/jeeps/${jeepId}/trips`, payload)
     trips.value.unshift(data.trip)
     return data.trip
   }
@@ -25,6 +27,10 @@ export const useTripsStore = defineStore('trips', () => {
     const idx = trips.value.findIndex((t) => t.id === tripId)
     if (idx !== -1) trips.value[idx] = data.trip
     return data.trip
+  }
+
+  async function setStatus(tripId, status) {
+    return updateTrip(tripId, { status })
   }
 
   async function complete(tripId) {
@@ -40,5 +46,5 @@ export const useTripsStore = defineStore('trips', () => {
     trips.value = trips.value.filter((t) => t.id !== tripId)
   }
 
-  return { trips, loading, fetchForJeep, start, updateTrip, complete, cancel, remove }
+  return { trips, loading, fetchForJeep, start, updateTrip, setStatus, complete, cancel, remove }
 })

@@ -1,0 +1,7 @@
+# Upload this file as: /home/u867165545/domains/komyuter.com/public_html/api/.htaccess
+# This redirects all traffic to the Laravel public/ subfolder
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>

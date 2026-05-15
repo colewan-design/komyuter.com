@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: 'https://jeep-tracker.eishipartners.com/api',
+  baseURL: 'https://api.komyuter.com',
   headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
 })
 
