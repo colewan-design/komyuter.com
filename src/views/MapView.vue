@@ -1,18 +1,19 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
 import PusherModule from 'pusher-js'
 const PusherClass = PusherModule.Pusher ?? PusherModule
 import { useJeepsStore } from '@/stores/jeeps'
 
-const GMAPS_KEY = 'AIzaSyCsiDYzoVEx6oSReXcY93EZMBSZizMT_KE'
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 
 const jeepsStore = useJeepsStore()
 const mapEl = ref(null)
 const liveEvents = ref(0)
 
 let map = null
-const markerMap = {}     // jeepId → { marker, infoWindow, jeep }
+const markerMap = {}     // jeepId → { marker, popup, el, jeep }
 const pusherChannels = {}
 let pusher = null
 
@@ -22,18 +23,13 @@ const statusColor = {
   maintenance: '#eab308',
 }
 
-function markerIcon(status) {
-  return {
-    path: google.maps.SymbolPath.CIRCLE,
-    scale: 14,
-    fillColor: statusColor[status] ?? '#6b7280',
-    fillOpacity: 1,
-    strokeColor: '#ffffff',
-    strokeWeight: 2.5,
-  }
+function markerEl(status) {
+  const el = document.createElement('div')
+  el.style.cssText = `width:28px;height:28px;border-radius:50%;background-color:${statusColor[status] ?? '#6b7280'};border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);cursor:pointer`
+  return el
 }
 
-function infoContent(jeep, loc) {
+function popupHTML(jeep, loc) {
   const color = statusColor[jeep.status] ?? '#6b7280'
   return `
     <div style="font-family:sans-serif;min-width:170px;padding:2px 0">
@@ -48,25 +44,31 @@ function infoContent(jeep, loc) {
 }
 
 function placeOrUpdateMarker(jeep, loc) {
-  const pos = { lat: parseFloat(loc.latitude), lng: parseFloat(loc.longitude) }
+  const lngLat = [parseFloat(loc.longitude), parseFloat(loc.latitude)]
+
   if (markerMap[jeep.id]) {
-    markerMap[jeep.id].marker.setPosition(pos)
-    markerMap[jeep.id].marker.setIcon(markerIcon(jeep.status))
-    markerMap[jeep.id].infoWindow.setContent(infoContent(jeep, loc))
+    const { marker, popup, el } = markerMap[jeep.id]
+    marker.setLngLat(lngLat)
+    el.style.backgroundColor = statusColor[jeep.status] ?? '#6b7280'
+    popup.setHTML(popupHTML(jeep, loc))
     markerMap[jeep.id].jeep = jeep
   } else {
-    const marker = new google.maps.Marker({
-      map,
-      position: pos,
-      icon: markerIcon(jeep.status),
-      title: jeep.name,
+    const el = markerEl(jeep.status)
+    const popup = new mapboxgl.Popup({ offset: 16, closeButton: false })
+      .setHTML(popupHTML(jeep, loc))
+
+    const marker = new mapboxgl.Marker({ element: el })
+      .setLngLat(lngLat)
+      .setPopup(popup)
+      .addTo(map)
+
+    el.addEventListener('click', () => {
+      Object.values(markerMap).forEach(m => {
+        if (m.marker !== marker) m.popup.remove()
+      })
     })
-    const infoWindow = new google.maps.InfoWindow({ content: infoContent(jeep, loc) })
-    marker.addListener('click', () => {
-      Object.values(markerMap).forEach(m => m.infoWindow.close())
-      infoWindow.open(map, marker)
-    })
-    markerMap[jeep.id] = { marker, infoWindow, jeep }
+
+    markerMap[jeep.id] = { marker, popup, el, jeep }
   }
 }
 
@@ -84,23 +86,21 @@ function subscribeToJeep(jeep) {
     if (!markerMap[jeep.id]) return
     const current = { ...markerMap[jeep.id].jeep, status }
     markerMap[jeep.id].jeep = current
-    markerMap[jeep.id].marker.setIcon(markerIcon(status))
+    markerMap[jeep.id].el.style.backgroundColor = statusColor[status] ?? '#6b7280'
   })
 
   pusherChannels[jeep.id] = ch
 }
 
 onMounted(async () => {
-  setOptions({ apiKey: GMAPS_KEY, version: 'weekly' })
-  await importLibrary('maps')
-
-  map = new google.maps.Map(mapEl.value, {
-    center: { lat: 16.4090, lng: 120.5930 },
+  map = new mapboxgl.Map({
+    container: mapEl.value,
+    style: 'mapbox://styles/mapbox/streets-v12',
+    center: [120.5930, 16.4090],
     zoom: 14,
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: true,
   })
+
+  await new Promise(resolve => map.on('load', resolve))
 
   pusher = new PusherClass('0f12289adb56149777a9', { cluster: 'ap1' })
 
@@ -114,6 +114,7 @@ onMounted(async () => {
 onUnmounted(() => {
   Object.values(pusherChannels).forEach(ch => ch.unbind_all())
   pusher?.disconnect()
+  map?.remove()
 })
 </script>
 

@@ -24,6 +24,7 @@ Examples:
 |------|-----|------|
 | 2026-05-08 | Google Maps Loader class removed — migrated to new functional API | [2026-05-08-google-maps-loader-api.md](2026-05-08-google-maps-loader-api.md) |
 | 2026-05-08 | Replaced default Vite SVG favicon with full favicon_io icon set | [2026-05-08-favicon-update.md](2026-05-08-favicon-update.md) |
+| 2026-05-15 | Replaced Google Maps with Mapbox GL JS across MapView and HistoryView | [2026-05-15-google-maps-to-mapbox.md](2026-05-15-google-maps-to-mapbox.md) |
 
 ---
 

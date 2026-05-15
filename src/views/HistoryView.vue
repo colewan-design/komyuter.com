@@ -1,15 +1,15 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { Loader } from '@googlemaps/js-api-loader'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
 import { useJeepsStore } from '@/stores/jeeps'
 
-const GMAPS_KEY = 'AIzaSyCsiDYzoVEx6oSReXcY93EZMBSZizMT_KE'
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 
 const jeepsStore = useJeepsStore()
 const mapEl = ref(null)
 
 let map = null
-let polyline = null
 let startMarker = null
 let endMarker = null
 let playerMarker = null
@@ -23,34 +23,46 @@ const playIndex = ref(0)
 let playTimer = null
 const playing = ref(false)
 
+function dotMarker(color) {
+  const el = document.createElement('div')
+  el.style.cssText = `width:18px;height:18px;border-radius:50%;background-color:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)`
+  return el
+}
+
+function clearRoute() {
+  startMarker?.remove(); startMarker = null
+  endMarker?.remove(); endMarker = null
+  playerMarker?.remove(); playerMarker = null
+
+  if (map.getLayer('route-line')) map.removeLayer('route-line')
+  if (map.getSource('route')) map.removeSource('route')
+}
+
 onMounted(async () => {
   await jeepsStore.fetchAll()
   if (jeepsStore.jeeps.length) selectedJeepId.value = jeepsStore.jeeps[0].id
 
-  const loader = new Loader({ apiKey: GMAPS_KEY, version: 'weekly' })
-  await loader.load()
-
-  map = new google.maps.Map(mapEl.value, {
-    center: { lat: 16.4090, lng: 120.5930 },
+  map = new mapboxgl.Map({
+    container: mapEl.value,
+    style: 'mapbox://styles/mapbox/streets-v12',
+    center: [120.5930, 16.4090],
     zoom: 14,
-    mapTypeControl: false,
-    streetViewControl: false,
   })
+
+  await new Promise(resolve => map.on('load', resolve))
 })
 
-onUnmounted(() => stopPlayback())
+onUnmounted(() => {
+  stopPlayback()
+  map?.remove()
+})
 
 async function fetchHistory() {
   if (!selectedJeepId.value) return
   loading.value = true
   stopPlayback()
   locations.value = []
-
-  polyline?.setMap(null)
-  startMarker?.setMap(null)
-  endMarker?.setMap(null)
-  playerMarker?.setMap(null)
-  polyline = startMarker = endMarker = playerMarker = null
+  clearRoute()
 
   try {
     const params = { limit: 200 }
@@ -62,34 +74,34 @@ async function fetchHistory() {
 
     if (!locations.value.length) return
 
-    const path = locations.value.map(l => ({
-      lat: parseFloat(l.latitude),
-      lng: parseFloat(l.longitude),
-    }))
+    const coords = locations.value.map(l => [parseFloat(l.longitude), parseFloat(l.latitude)])
 
-    polyline = new google.maps.Polyline({
-      path,
-      map,
-      strokeColor: '#3b82f6',
-      strokeWeight: 3,
-      strokeOpacity: 0.8,
+    map.addSource('route', {
+      type: 'geojson',
+      data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } },
+    })
+    map.addLayer({
+      id: 'route-line',
+      type: 'line',
+      source: 'route',
+      paint: { 'line-color': '#3b82f6', 'line-width': 3, 'line-opacity': 0.8 },
     })
 
-    const dotIcon = (color) => ({
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 8,
-      fillColor: color,
-      fillOpacity: 1,
-      strokeColor: '#ffffff',
-      strokeWeight: 2,
-    })
+    startMarker = new mapboxgl.Marker({ element: dotMarker('#22c55e') })
+      .setLngLat(coords[0])
+      .setPopup(new mapboxgl.Popup({ offset: 12, closeButton: false }).setHTML('<p style="font-size:12px;margin:0">Start</p>'))
+      .addTo(map)
 
-    startMarker = new google.maps.Marker({ map, position: path[0], icon: dotIcon('#22c55e'), title: 'Start' })
-    endMarker = new google.maps.Marker({ map, position: path[path.length - 1], icon: dotIcon('#ef4444'), title: 'End' })
+    endMarker = new mapboxgl.Marker({ element: dotMarker('#ef4444') })
+      .setLngLat(coords[coords.length - 1])
+      .setPopup(new mapboxgl.Popup({ offset: 12, closeButton: false }).setHTML('<p style="font-size:12px;margin:0">End</p>'))
+      .addTo(map)
 
-    const bounds = new google.maps.LatLngBounds()
-    path.forEach(p => bounds.extend(p))
-    map.fitBounds(bounds, 40)
+    const bounds = coords.reduce(
+      (b, c) => b.extend(c),
+      new mapboxgl.LngLatBounds(coords[0], coords[0])
+    )
+    map.fitBounds(bounds, { padding: 40 })
   } finally {
     loading.value = false
   }
@@ -100,21 +112,18 @@ function startPlayback() {
   if (playIndex.value >= locations.value.length - 1) playIndex.value = 0
   playing.value = true
 
-  playerMarker?.setMap(null)
+  playerMarker?.remove()
   const start = locations.value[playIndex.value]
-  playerMarker = new google.maps.Marker({
-    map,
-    position: { lat: parseFloat(start.latitude), lng: parseFloat(start.longitude) },
-    icon: {
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 10,
-      fillColor: '#3b82f6',
-      fillOpacity: 1,
-      strokeColor: '#ffffff',
-      strokeWeight: 2,
-    },
-    zIndex: 10,
-  })
+  const startLngLat = [parseFloat(start.longitude), parseFloat(start.latitude)]
+
+  const el = dotMarker('#3b82f6')
+  el.style.width = '20px'
+  el.style.height = '20px'
+  el.style.zIndex = '10'
+
+  playerMarker = new mapboxgl.Marker({ element: el })
+    .setLngLat(startLngLat)
+    .addTo(map)
 
   playTimer = setInterval(() => {
     playIndex.value++
@@ -123,9 +132,9 @@ function startPlayback() {
       return
     }
     const loc = locations.value[playIndex.value]
-    const pos = { lat: parseFloat(loc.latitude), lng: parseFloat(loc.longitude) }
-    playerMarker.setPosition(pos)
-    map.panTo(pos)
+    const lngLat = [parseFloat(loc.longitude), parseFloat(loc.latitude)]
+    playerMarker.setLngLat(lngLat)
+    map.easeTo({ center: lngLat, duration: 400 })
   }, 500)
 }
 
